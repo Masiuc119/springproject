@@ -4,6 +4,10 @@ h1 {
 h2 {
     color: red;
 }
+span{
+    color: red;
+    font-style: italic;
+}
 table {
     font-family: "Lucida Sans Unicode", "Lucida Grande", Sans-Serif;
     border-collapse: collapse;
