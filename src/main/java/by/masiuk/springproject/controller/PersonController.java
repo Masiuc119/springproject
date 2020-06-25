@@ -1,5 +1,6 @@
 package by.masiuk.springproject.controller;
 
+import by.masiuk.springproject.aop.LogAnnotation;
 import by.masiuk.springproject.dto.NewPersonDto;
 import by.masiuk.springproject.entity.Person;
 import by.masiuk.springproject.exceptions.NoSuchEntityException;
@@ -21,9 +22,7 @@ import java.util.List;
 @RequestMapping
 public class PersonController {
     private final PersonService personService;
-// private static final org.slf4j.Logger log =
-// org.slf4j.LoggerFactory.getLogger(MainController.class);
-// Вводится (inject) из application.properties.
+
     @Value("${welcome.message}")
     private String message;
     @Value("${error.message}")
@@ -33,45 +32,39 @@ public class PersonController {
     public PersonController(PersonService personService) {
         this.personService = personService;
     }
-
+    @LogAnnotation
     @GetMapping(value = {"/", "/index"})
     public ModelAndView index(Model model) {
         ModelAndView modelAndView = new ModelAndView();
         modelAndView.setViewName("index");
         model.addAttribute("message", message);
-        log.info("index was called");
         return modelAndView;
     }
-
+    @LogAnnotation
     @GetMapping(value = {"/personList"})
     public ModelAndView personList(Model model) {
         List<Person> persons = personService.getAllPerson();
-        log.info("person List" + persons);
         ModelAndView modelAndView = new ModelAndView();
         modelAndView.setViewName("personList");
         model.addAttribute("persons", persons);
-        log.info("/personList was called");
         return modelAndView;
     }
-
+    @LogAnnotation
     @GetMapping(value = {"/addPerson"})
     public ModelAndView showAddPersonPage(Model model) {
         ModelAndView modelAndView = new ModelAndView("addPerson");
         NewPersonDto personForm = new NewPersonDto();
         model.addAttribute("personForm", personForm);
-        log.info("/addPerson - GET was called" + personForm);
         return modelAndView;
     }
 
-    // @PostMapping("/addPerson")
-//GetMapping("/")
+    @LogAnnotation
     @PostMapping(value = {"/addPerson"})
     public ModelAndView savePerson(Model model, //
                                    @Valid @ModelAttribute("personForm")
                                            NewPersonDto personDto,
                                    Errors errors) {
         ModelAndView modelAndView = new ModelAndView();
-        log.info("/addPerson - POST was called" + personDto);
         if (errors.hasErrors()) {
             modelAndView.setViewName("addPerson");
         } else {
@@ -89,12 +82,11 @@ public class PersonController {
                     city, zip, email, birthday, phone);
             personService.addNewPerson(newPerson);
             model.addAttribute("persons", personService.getAllPerson());
-            log.info("/addPerson - POST was called");
             return modelAndView;
         }
         return modelAndView;
     }
-
+    @LogAnnotation
     @RequestMapping(value = "/editPerson/{id}", method = RequestMethod.GET)
     public ModelAndView editPage(@PathVariable("id") int id) throws
             NoSuchEntityException {
@@ -105,18 +97,17 @@ public class PersonController {
         modelAndView.addObject("person", person);
         return modelAndView;
     }
-
+    @LogAnnotation
     @RequestMapping(value = "/editPerson", method = RequestMethod.POST)
     public ModelAndView editPerson(@Valid @ModelAttribute("person") Person
                                            person,
                                    Errors errors) {
-        log.info("/editPerson - POST was called" + person);
         personService.addNewPerson(person);
         ModelAndView modelAndView = new ModelAndView();
         modelAndView.setViewName("redirect:/personList");
         return modelAndView;
     }
-
+    @LogAnnotation
     @RequestMapping(value = "/deletePerson/{id}", method = RequestMethod.GET)
     public ModelAndView deletePerson(@PathVariable("id") Long id) throws
             NoSuchEntityException {
