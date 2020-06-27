@@ -2,10 +2,8 @@ package by.masiuk.springproject.aop;
 
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.annotation.After;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Before;
-import org.aspectj.lang.annotation.Pointcut;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.*;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
@@ -19,6 +17,7 @@ public class LogAspect {
 
     public void callAtPersonController() {
     }
+
     @Before("callAtPersonController()")
     public void beforeCallMethod(JoinPoint jp) {
         String args = Arrays.stream(jp.getArgs())
@@ -26,8 +25,20 @@ public class LogAspect {
                 .collect(Collectors.joining(","));
         log.info("before " + jp.toString() + ", args=[" + args + "]");
     }
+
     @After("callAtPersonController()")
     public void afterCallAt(JoinPoint jp) {
         log.info("after " + jp.toString());
     }
+
+    @Around("callAtPersonController()")
+    public Object aroundCall(ProceedingJoinPoint jp) throws Throwable {
+        long start = System.currentTimeMillis();
+        Object proceed = jp.proceed();
+        long executionTime = System.currentTimeMillis() - start;
+        log.info("Метод "+ jp.getSignature() + " выполнен за " + executionTime + "мс");
+        return proceed;
+    }
+
+
 }
