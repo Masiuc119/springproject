@@ -1,28 +1,34 @@
 package by.masiuk.springproject.controller;
 
-import by.masiuk.springproject.aop.LogAnnotation;
 import by.masiuk.springproject.dto.NewPersonDto;
+import by.masiuk.springproject.dto.PersonDto;
 import by.masiuk.springproject.entity.Person;
-import by.masiuk.springproject.exceptions.NoSuchEntityException;
+import by.masiuk.springproject.exceptions.ResourceNotFoundException;
 import by.masiuk.springproject.service.PersonService;
-import lombok.extern.slf4j.Slf4j;
+import by.masiuk.springproject.util.Mapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.ui.Model;
-import org.springframework.validation.Errors;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
-import java.util.Date;
 import java.util.List;
 
-@Slf4j
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
 @RestController
 @RequestMapping
-public class PersonController {
+class PersonController {
     private final PersonService personService;
-
     @Value("${welcome.message}")
     private String message;
     @Value("${error.message}")
@@ -31,91 +37,56 @@ public class PersonController {
     @Autowired
     public PersonController(PersonService personService) {
         this.personService = personService;
-    }
-    @LogAnnotation
-    @GetMapping(value = {"/", "/index"})
-    public ModelAndView index(Model model) {
-        ModelAndView modelAndView = new ModelAndView();
-        modelAndView.setViewName("index");
-        model.addAttribute("message", message);
-        return modelAndView;
-    }
-    @LogAnnotation
-    @GetMapping(value = {"/personList"})
-    public ModelAndView personList(Model model) {
-        List<Person> persons = personService.getAllPerson();
-        ModelAndView modelAndView = new ModelAndView();
-        modelAndView.setViewName("personList");
-        model.addAttribute("persons", persons);
-        return modelAndView;
-    }
-    @LogAnnotation
-    @GetMapping(value = {"/addPerson"})
-    public ModelAndView showAddPersonPage(Model model) {
-        ModelAndView modelAndView = new ModelAndView("addPerson");
-        NewPersonDto personForm = new NewPersonDto();
-        model.addAttribute("personForm", personForm);
-        return modelAndView;
+// this.personRepository = personRepository;
     }
 
-    @LogAnnotation
-    @PostMapping(value = {"/addPerson"})
-    public ModelAndView savePerson(Model model, //
-                                   @Valid @ModelAttribute("personForm")
-                                           NewPersonDto personDto,
-                                   Errors errors) {
-        ModelAndView modelAndView = new ModelAndView();
-        if (errors.hasErrors()) {
-            modelAndView.setViewName("addPerson");
-        } else {
-            modelAndView.setViewName("personList");
-            Long id = personDto.getPersonId();
-            String firstName = personDto.getFirstName();
-            String lastName = personDto.getLastName();
-            String street = personDto.getStreet();
-            String city = personDto.getCity();
-            String zip = personDto.getZip();
-            String email = personDto.getEmail();
-            Date birthday = (Date) personDto.getBirthday();
-            String phone = personDto.getPhone();
-            Person newPerson = new Person(id, firstName, lastName, street,
-                    city, zip, email, birthday, phone);
-            personService.addNewPerson(newPerson);
-            model.addAttribute("persons", personService.getAllPerson());
-            return modelAndView;
+    //, produces = { "application/json" , "application/xml"}
+    @GetMapping(value = {"/personList"})
+    public CollectionModel<EntityModel<PersonDto>> personList() {
+// return Mapper.mapAll(personService.getAllPerson(), PersonDto.class);
+        CollectionModel<EntityModel<PersonDto>> resource = CollectionModel.wrap(
+                Mapper.mapAll(personService.getAllPerson(), PersonDto.class));
+        for (final EntityModel<PersonDto> res : resource) {
+            Link selfLink = linkTo(PersonController.class)
+                    .slash(res.getContent().getPersonId()).withSelfRel();
+            res.add(selfLink);
         }
-        return modelAndView;
+        resource.add(linkTo(methodOn(PersonController.class).personList()).withRel("all"));
+        return resource;
     }
-    @LogAnnotation
-    @RequestMapping(value = "/editPerson/{id}", method = RequestMethod.GET)
-    public ModelAndView editPage(@PathVariable("id") int id) throws
-            NoSuchEntityException {
-        Person person = personService.getById(id).orElseThrow(() -> new
-                NoSuchEntityException("Person not found"));
-        ModelAndView modelAndView = new ModelAndView();
-        modelAndView.setViewName("editPerson");
-        modelAndView.addObject("person", person);
-        return modelAndView;
+    @Operation(summary = "Find person by ID", description = "Returns a single person", tags = {
+            "person" })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "successful operation",
+                    content = @Content(schema = @Schema(implementation = Person.class))),
+            @ApiResponse(responseCode = "404", description = "Person not found") })
+    @GetMapping(value = {"/personList/{id}"})
+    public EntityModel<PersonDto> findById(@PathVariable("id") Long id) throws
+            ResourceNotFoundException {
+        PersonDto personid = Mapper.map(personService.getById(id), PersonDto.class);
+        Link link = linkTo(methodOn(PersonController.class).findById(id)).withSelfRel();
+        EntityModel<PersonDto> rezult = new EntityModel<PersonDto>(personid, link);
+        return rezult;
     }
-    @LogAnnotation
-    @RequestMapping(value = "/editPerson", method = RequestMethod.POST)
-    public ModelAndView editPerson(@Valid @ModelAttribute("person") Person
-                                           person,
-                                   Errors errors) {
-        personService.addNewPerson(person);
-        ModelAndView modelAndView = new ModelAndView();
-        modelAndView.setViewName("redirect:/personList");
-        return modelAndView;
+
+    @PutMapping(value = "/editPerson/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public void editPerson(@PathVariable("id") Long id, @Valid @RequestBody
+            PersonDto persondto) throws ResourceNotFoundException {
+        personService.getById(id);
+        personService.editPerson(Mapper.map(persondto, Person.class), id);
     }
-    @LogAnnotation
-    @RequestMapping(value = "/deletePerson/{id}", method = RequestMethod.GET)
-    public ModelAndView deletePerson(@PathVariable("id") Long id) throws
-            NoSuchEntityException {
-        Person person = personService.getById(id).orElseThrow(() -> new
-                NoSuchEntityException("Person not found"));
-        personService.deletePerson(person);
-        ModelAndView modelAndView = new ModelAndView();
-        modelAndView.setViewName("redirect:/personList");
-        return modelAndView;
+
+    @PostMapping("/addPerson")
+    @ResponseStatus(HttpStatus.CREATED)
+    public void savePerson(@Valid @RequestBody NewPersonDto personDto) {
+        personService.addNewPerson(Mapper.map(personDto, Person.class));
+    }
+
+    @DeleteMapping(value = "/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public void deletePerson(@PathVariable("id") Long id) throws
+            ResourceNotFoundException {
+        personService.deletePerson(personService.getById(id));
     }
 }
